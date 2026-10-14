@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShareBite - Food Donation & Distribution Platform</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Open-Source Offline Map Library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                             dark: '#0b1329',
+                            card: '#111c38'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #070d19; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(17, 28, 56, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card { background: rgba(22, 36, 71, 0.6); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        #map { height: 100%; min-height: 380px; border-radius: 0.75rem; z-index: 1; }
+        .leaflet-tile { filter: brightness(0.7) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navigation Header -->
+    <header class="glass sticky top-0 z-50 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-tr from-green-500 to-emerald-300 p-2 rounded-xl text-gray-950 font-bold">
+                <i data-lucide="utensils" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-xl tracking-wider text-white">Share<span class="text-green-400">Bite</span></h1>
+                <p class="text-xs text-gray-400">Bridging Surplus to Hunger</p>
+            </div>
+        </div>
+
+        <!-- Role Selector Switcher (Dummy Auth) -->
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center bg-gray-900 border border-gray-700 rounded-lg p-1 text-xs">
+                <span class="text-gray-400 px-2 flex items-center"><i data-lucide="user-check" class="w-3.5 h-3.5 mr-1"></i> Switch Role:</span>
+                <button onclick="switchRole('donor')" id="btn-donor" class="px-3 py-1.5 rounded-md transition font-medium">Donor</button>
+                <button onclick="switchRole('volunteer')" id="btn-volunteer" class="px-3 py-1.5 rounded-md transition font-medium">Volunteer</button>
+                <button onclick="switchRole('org')" id="btn-org" class="px-3 py-1.5 rounded-md transition font-medium">Organization</button>
+                <button onclick="switchRole('admin')" id="btn-admin" class="px-3 py-1.5 rounded-md transition font-medium">Admin</button>
+            </div>
+            <div id="user-badge" class="hidden md:flex items-center space-x-2 bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                <span id="user-role-label">Donor Portal</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left/Main Interactive Column -->
+        <div class="lg:col-span-7 flex flex-col space-y-6">
+
+            <!-- Dynamic Workflow Header Card -->
+            <div class="glass p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border-l-4 border-green-500">
+                <div>
+                    <h2 id="view-title" class="text-lg font-bold text-white">Donor Workspace</h2>
+                    <p id="view-desc" class="text-xs text-gray-400">Post surplus edible meals and track real-time collection requests.</p>
+                </div>
+                <button id="action-modal-btn" onclick="openCreateModal()" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-gray-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center shadow-lg shadow-green-950 transition">
+                    <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i> Post Surplus Food
+                </button>
+            </div>
+
+            <!-- Offline Map Section -->
+            <div class="glass p-4 rounded-2xl relative flex flex-col">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-green-400"></i>
+                        <span class="text-xs font-semibold text-gray-200">Interactive Location-Based Matching</span>
+                    </div>
+                    <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">Offline Simulation Engine Active</span>
+                </div>
+                <div id="map" class="w-full h-64 rounded-xl border border-gray-800"></div>
+            </div>
+
+            <!-- Main Interactive Feed / Table -->
+            <div class="glass p-5 rounded-2xl flex flex-col flex-grow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-gray-200 flex items-center">
+                        <i data-lucide="list" class="w-4 h-4 mr-2 text-green-400"></i>
+                        <span id="feed-title">Active Food Surplus Posts</span>
+                    </h3>
+                    <span id="item-count" class="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">0 Items</span>
+                </div>
+
+                <div id="feed-container" class="space-y-3 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar">
+                    <!-- Dynamic Items render here -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Side Analytics & Real-Time Logistics Column -->
+        <div class="lg:col-span-5 flex flex-col space-y-6">
+
+            <!-- Real-time Metrics Dashboard -->
+            <div class="glass p-5 rounded-2xl">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
+                    <i data-lucide="activity" class="w-4 h-4 mr-2 text-green-400"></i> Impact Metrics & Analytics
+                </h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="glass-card p-3 rounded-xl">
+                        <p class="text-[10px] text-gray-400">Meals Saved</p>
+                        <p id="stat-meals" class="text-xl font-black text-green-400 mt-1">1,248</p>
+                    </div>
+                    <div class="glass-card p-3 rounded-xl">
+                        <p class="text-[10px] text-gray-400">Active Volunteers</p>
+                        <p id="stat-volunteers" class="text-xl font-black text-emerald-300 mt-1">42</p>
+                    </div>
+                    <div class="glass-card p-3 rounded-xl">
+                        <p class="text-[10px] text-gray-400">NGOs & Shelters Served</p>
+                        <p id="stat-orgs" class="text-xl font-black text-teal-300 mt-1">18</p>
+                    </div>
+                    <div class="glass-card p-3 rounded-xl">
+                        <p class="text-[10px] text-gray-400">Verification Rate</p>
+                        <p id="stat-rate" class="text-xl font-black text-cyan-400 mt-1">98.5%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-Time Activity Log -->
+            <div class="glass p-5 rounded-2xl flex-grow flex flex-col">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center">
+                    <i data-lucide="shield-check" class="w-4 h-4 mr-2 text-green-400"></i> Audit Log & Status Tracker
+                </h3>
+                <div id="audit-log" class="space-y-2.5 overflow-y-auto max-h-[300px] text-xs pr-1 custom-scrollbar">
+                    <!-- Dynamic audit logs populate here -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Create Food Donation Modal -->
+    <div id="create-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass p-6 rounded-2xl w-full max-w-md border border-gray-700 relative">
+            <button onclick="closeCreateModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <h3 class="text-base font-bold text-white mb-4 flex items-center">
+                <i data-lucide="package-plus" class="w-5 h-5 mr-2 text-green-400"></i> Post Surplus Food
+            </h3>
+            <form id="donation-form" onsubmit="handleCreateDonation(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-gray-300 mb-1">Meal Title / Description</label>
+                    <input type="text" id="food-title" required placeholder="e.g. 30 Packets Fresh Biryani Meals" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-gray-300 mb-1">Quantity (Meals/Servings)</label>
+                        <input type="number" id="food-qty" required placeholder="30" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-1">Consume Before (Hours)</label>
+                        <input type="number" id="food-expiry" required placeholder="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-300 mb-1">Pickup Address / Location</label>
+                    <input type="text" id="food-location" required placeholder="e.g. Grand Sultan Restaurant, Downtown" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-gray-300 mb-1">Food Category</label>
+                    <select id="food-type" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+                        <option value="Cooked Meals">Cooked Meals</option>
+                        <option value="Bakery & Snacks">Bakery & Snacks</option>
+                        <option value="Raw Groceries">Raw Groceries</option>
+                        <option value="Packaged Foods">Packaged Foods</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-gray-950 font-bold py-2.5 rounded-xl hover:from-green-600 hover:to-emerald-700 transition">
+                    Publish Donation Post
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script Engine -->
+    <script>
+        // --- State Management ---
+        let currentRole = 'donor';
+        let map, mapMarkers = [];
+
+        // Sample Data Store
+        let donations = [
+            {
+                id: 101,
+                title: "40 Packets Veg Rice & Curry",
+                donor: "City Catering Co.",
+                quantity: "40 Meals",
+                location: "Central Avenue Plaza",
+                expiry: "3 Hours",
+                status: "Pending Verification", // Verification -> Approved -> Assigned -> Completed
+                type: "Cooked Meals",
+                lat: 23.8103,
+                lng: 90.4125,
+                time: "10 mins ago"
+            },
+            {
+                id: 102,
+                title: "25 Loaves Fresh Wholemeal Bread",
+                donor: "Bakers Delite",
+                quantity: "25 Packets",
+                location: "Green Road Corner",
+                expiry: "12 Hours",
+                status: "Approved",
+                type: "Bakery & Snacks",
+                lat: 23.8150,
+                lng: 90.4200,
+                time: "25 mins ago"
+            },
+            {
+                id: 103,
+                title: "15 Boxed Meals (Chicken & Salad)",
+                donor: "Skyline Hotel",
+                quantity: "15 Servings",
+                location: "Airport Road, Block B",
+                expiry: "2 Hours",
+                status: "Assigned",
+                type: "Cooked Meals",
+                lat: 23.8050,
+                lng: 90.4050,
+                assignedTo: "Volunteer #14 (Alex)",
+                time: "40 mins ago"
+            }
+        ];
+
+        let auditLogs = [
+            { time: "Just now", text: "System initialized with Offline Simulation Engine.", type: "system" },
+            { time: "5m ago", text: "City Catering Co. registered 40 Veg Rice packets.", type: "donor" },
+            { time: "12m ago", text: "Admin verified Bakers Delite bakery post.", type: "admin" }
+        ];
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initMap();
+            switchRole('donor');
+            renderAuditLog();
+        });
+
+        // --- Offline Map Logic (Leaflet.js using Canvas Tiles) ---
+        function initMap() {
+            // Default Centered Coordinates
+            const defaultCoords = [23.8103, 90.4125];
+            
+            // Offline/Standard Tile layer rendering using OpenStreetMap
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView(defaultCoords, 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                minZoom: 10
+            }).addTo(map);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            updateMapMarkers();
+        }
+
+        function updateMapMarkers() {
+            // Clear existing map markers
+            mapMarkers.forEach(marker => map.removeLayer(marker));
+            mapMarkers = [];
+
+            donations.forEach(item => {
+                const marker = L.circleMarker([item.lat, item.lng], {
+                    radius: 8,
+                    fillColor: item.status === 'Pending Verification' ? '#f59e0b' : item.status === 'Approved' ? '#22c55e' : '#3b82f6',
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div style="color: #111; font-size: 11px; font-family: sans-serif;">
+                        <strong>${item.title}</strong><br/>
+                        <span style="color: #666;">Status: ${item.status}</span><br/>
+                        <span>Qty: ${item.quantity}</span>
+                    </div>
+                `);
+
+                mapMarkers.push(marker);
+            });
+        }
+
+        // --- Role Switching Engine ---
+        function switchRole(role) {
+            currentRole = role;
+
+            // Update Header Buttons Styling
+            ['donor', 'volunteer', 'org', 'admin'].forEach(r => {
+                const btn = document.getElementById(`btn-${r}`);
+                if (r === role) {
+                    btn.className = "px-3 py-1.5 rounded-md transition font-medium bg-green-500 text-gray-950 shadow";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-md transition font-medium text-gray-400 hover:text-white";
+                }
+            });
+
+            // Contextual Header Updates
+            const viewTitle = document.getElementById('view-title');
+            const viewDesc = document.getElementById('view-desc');
+            const roleBadge = document.getElementById('user-role-label');
+            const actionBtn = document.getElementById('action-modal-btn');
+            const feedTitle = document.getElementById('feed-title');
+
+            if (role === 'donor') {
+                viewTitle.innerText = "Donor Portal";
+                viewDesc.innerText = "Post surplus food, check verification status, and coordinate pickups.";
+                roleBadge.innerText = "Role: Food Donor";
+                actionBtn.classList.remove('hidden');
+                feedTitle.innerText = "My Surplus Food List";
+            } else if (role === 'volunteer') {
+                viewTitle.innerText = "Volunteer Field Console";
+                viewDesc.innerText = "Claim verified nearby food donations and execute pickups/deliveries.";
+                roleBadge.innerText = "Role: Field Volunteer";
+                actionBtn.classList.add('hidden');
+                feedTitle.innerText = "Nearby Available Pickups";
+            } else if (role === 'org') {
+                viewTitle.innerText = "Receiving Organization Portal";
+                viewDesc.innerText = "Request food aid and maintain records of inbound deliveries.";
+                roleBadge.innerText = "Role: NGO / Shelter";
+                actionBtn.classList.add('hidden');
+                feedTitle.innerText = "Incoming Food Donations";
+            } else if (role === 'admin') {
+                viewTitle.innerText = "System Admin Control Board";
+                viewDesc.innerText = "Verify pending donation safety, manage compliance, and audit logs.";
+                roleBadge.innerText = "Role: System Admin";
+                actionBtn.classList.add('hidden');
+                feedTitle.innerText = "System-Wide Donation Submissions";
+            }
+
+            renderFeed();
+        }
+
+        // --- Feed Rendering Engine ---
+        function renderFeed() {
+            const container = document.getElementById('feed-container');
+            container.innerHTML = '';
+
+            let filteredItems = [...donations];
+
+            // Filter contextually by role
+            if (currentRole === 'volunteer') {
+                filteredItems = donations.filter(d => d.status === 'Approved' || d.status === 'Assigned');
+            } else if (currentRole === 'org') {
+                filteredItems = donations.filter(d => d.status === 'Approved' || d.status === 'Assigned' || d.status === 'Completed');
+            }
+
+            document.getElementById('item-count').innerText = `${filteredItems.length} Items`;
+
+            if (filteredItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-gray-500 text-xs">No active records for this context.</div>`;
+                return;
+            }
+
+            filteredItems.forEach(item => {
+                const badgeColor = 
+                    item.status === 'Pending Verification' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    item.status === 'Approved' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                    item.status === 'Assigned' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                    'bg-purple-500/10 text-purple-400 border-purple-500/20';
+
+                const card = document.createElement('div');
+                card.className = 'glass-card p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-gray-800 hover:border-gray-700 transition';
+
+                card.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-sm text-white">${item.title}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeColor}">${item.status}</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+                            <span class="flex items-center"><i data-lucide="user" class="w-3 h-3 mr-1 text-gray-500"></i> ${item.donor}</span>
+                            <span class="flex items-center"><i data-lucide="package" class="w-3 h-3 mr-1 text-gray-500"></i> ${item.quantity}</span>
+                            <span class="flex items-center"><i data-lucide="clock" class="w-3 h-3 mr-1 text-gray-500"></i> Exp: ${item.expiry}</span>
+                            <span class="flex items-center"><i data-lucide="map-pin" class="w-3 h-3 mr-1 text-gray-500"></i> ${item.location}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 self-end md:self-center">
+                        ${getActionButton(item)}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+            updateMapMarkers();
+        }
+
+        function getActionButton(item) {
+            if (currentRole === 'admin' && item.status === 'Pending Verification') {
+                return `<button onclick="updateStatus(${item.id}, 'Approved')" class="bg-green-500 hover:bg-green-600 text-gray-950 text-xs font-bold px-3 py-1.5 rounded-lg transition">Verify Post</button>`;
+            }
+            if (currentRole === 'volunteer' && item.status === 'Approved') {
+                return `<button onclick="updateStatus(${item.id}, 'Assigned')" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">Accept Pickup</button>`;
+            }
+            if (currentRole === 'volunteer' && item.status === 'Assigned') {
+                return `<button onclick="updateStatus(${item.id}, 'Completed')" class="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">Mark Delivered</button>`;
+            }
+            return `<span class="text-[11px] text-gray-500 italic">${item.time}</span>`;
+        }
+
+        // --- System State Handlers ---
+        function updateStatus(id, newStatus) {
+            const item = donations.find(d => d.id === id);
+            if (item) {
+                item.status = newStatus;
+                addAuditLog(`${currentRole.toUpperCase()} updated status of "${item.title}" to ${newStatus}.`, currentRole);
+                renderFeed();
+            }
+        }
+
+        function handleCreateDonation(e) {
+            e.preventDefault();
+            const title = document.getElementById('food-title').value;
+            const qty = document.getElementById('food-qty').value;
+            const expiry = document.getElementById('food-expiry').value;
+            const location = document.getElementById('food-location').value;
+            const type = document.getElementById('food-type').value;
+
+            // Generate slight random offset for offline map simulation display
+            const lat = 23.8103 + (Math.random() - 0.5) * 0.03;
+            const lng = 90.4125 + (Math.random() - 0.5) * 0.03;
+
+            const newItem = {
+                id: Date.now(),
+                title: title,
+                donor: "Demo User (Donor)",
+                quantity: `${qty} Servings`,
+                location: location,
+                expiry: `${expiry} Hours`,
+                status: "Pending Verification",
+                type: type,
+                lat: lat,
+                lng: lng,
+                time: "Just now"
+            };
+
+            donations.unshift(newItem);
+            addAuditLog(`New food surplus posted: "${title}". Awaiting Admin verification.`, "donor");
+            closeCreateModal();
+            renderFeed();
+            document.getElementById('donation-form').reset();
+        }
+
+        function addAuditLog(text, actor) {
+            auditLogs.unshift({
+                time: "Just now",
+                text: text,
+                type: actor
+            });
+            renderAuditLog();
+        }
+
+        function renderAuditLog() {
+            const container = document.getElementById('audit-log');
+            container.innerHTML = '';
+            auditLogs.slice(0, 8).forEach(log => {
+                const el = document.createElement('div');
+                el.className = 'flex items-start space-x-2 text-gray-300 border-b border-gray-800/60 pb-2';
+                el.innerHTML = `
+                    <span class="text-[10px] text-gray-500 font-mono">${log.time}</span>
+                    <span class="text-xs">${log.text}</span>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        // --- Modal Helpers ---
+        function openCreateModal() { document.getElementById('create-modal').classList.remove('hidden'); }
+        function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
