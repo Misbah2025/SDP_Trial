@@ -1,0 +1,28 @@
+{
+  "name": "sdp_trial",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Misbah2025/SDP_Trial.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Misbah2025/SDP_Trial/issues"
+  },
+  "homepage": "https://github.com/Misbah2025/SDP_Trial#readme",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "mongoose": "^9.11.2",
+    "nodemailer": "^10.1.7"
+  }
+}

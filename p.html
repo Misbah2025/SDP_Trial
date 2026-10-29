@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ShareBite - Food Donation & Distribution Platform</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Lucide Icons CDN -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet Routing Machine CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<!-- Chart.js CDN for Interactive Analytics -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        emerald: {
+          400: '#34d399',
+          500: '#10b981',
+          600: '#059669',
+          700: '#047857',
+        },
+        darkbg: '#070d19',
+        darkcard: 'rgba(15, 23, 42, 0.75)'
+      }
+    }
+  }
+}
+</script>
+<style>
+body {
+  background-color: #070d19;
+  color: #f3f4f6;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow-x: hidden;
+}
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(52, 211, 153, 0.3);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(52, 211, 153, 0.6);
+}
+
+/* Responsive Dynamic Map Height for All Devices */
+#leaflet-map {
+  width: 100%;
+  height: 340px;
+  border-radius: 1rem;
+  z-index: 10;
+}
+@media (min-width: 640px) {
+  #leaflet-map { height: 400px; }
+}
+@media (min-width: 768px) {
+  #leaflet-map { height: 480px; }
+}
+@media (min-width: 1024px) {
+  #leaflet-map { height: 530px; }
+}
+@media (min-width: 1280px) {
+  #leaflet-map { height: 580px; }
+}
+
+/* Pulse animation for live markers */
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 0.4; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+.marker-pulse {
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+/* Toast animation */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.toast-enter {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+/* Leaflet map routing container dark custom theme */
+.leaflet-routing-container {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  color: #e5e7eb !important;
+  border-radius: 8px;
+  padding: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  font-size: 11px;
+  max-width: 280px !important;
+}
+.leaflet-routing-alt {
+  max-height: 120px;
+  overflow-y: auto;
+}
+.leaflet-tile {
+  filter: brightness(0.85) contrast(1.1);
+}
+</style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative selection:bg-emerald-500 selection:text-white">
+<!-- TOP NAVIGATION BAR -->
+<header class="sticky top-0 z-40 w-full glass-panel border-b border-gray-800/80 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3">
+<div class="max-w-7xl mx-auto flex items-center justify-between">
+<!-- Brand Logo -->
+<div class="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer" onclick="switchTab('feed')">
+<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+<i data-lucide="utensils" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
+</div>
+<div>
+<span class="text-lg sm:text-xl font-bold bg-gradient-to-r from-emerald-400 via-teal-300 to-white bg-clip-text text-transparent">ShareBite</span>
+<span class="block text-[9px] sm:text-[10px] text-gray-400 -mt-0.5 tracking-wider uppercase font-medium">Rescue & Distribute</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="hidden md:flex items-center space-x-1 glass-panel px-3 py-1.5 rounded-full border border-gray-700/50">
+<button onclick="switchTab('feed')" id="nav-feed" class="nav-link px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
+<i data-lucide="rss" class="w-4 h-4"></i> Food Feed
+</button>
+<button onclick="switchTab('map')" id="nav-map" class="nav-link px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium text-gray-300 hover:text-white transition-all flex items-center gap-2">
+<i data-lucide="map-pin" class="w-4 h-4"></i> Live Rescue Map
+</button>
+<button onclick="switchTab('analytics')" id="nav-analytics" class="nav-link px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium text-gray-300 hover:text-white transition-all flex items-center gap-2">
+<i data-lucide="bar-chart-3" class="w-4 h-4"></i> Impact Metrics
+</button>
+</nav>
+<!-- User Auth Controls -->
+<div class="flex items-center space-x-2 sm:space-x-3">
+<!-- Chat Toggle Button -->
+<button onclick="toggleChatDrawer()" class="relative p-2 sm:p-2.5 rounded-xl glass-panel hover:bg-gray-800 text-gray-300 hover:text-emerald-400 transition-all border border-gray-700/50">
+<i data-lucide="message-square" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+<span id="chat-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-emerald-500 text-darkbg text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center">1</span>
+</button>
+<!-- Post Food CTA (Hidden for Volunteers) -->
+<button id="top-post-btn" onclick="openPostModal()" class="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+<i data-lucide="plus-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i> <span class="hidden xs:inline">Post Food</span>
+</button>
+<!-- User Profile / Auth State -->
+<div id="auth-section">
+<!-- Dynamic rendering via JS -->
+</div>
+</div>
+</div>
+<!-- Mobile Sub Nav Header -->
+<div class="flex md:hidden items-center justify-around mt-2 pt-2 border-t border-gray-800/60 text-xs font-medium">
+<button onclick="switchTab('feed')" id="mobile-nav-feed" class="py-1 text-emerald-400 flex items-center gap-1"><i data-lucide="rss" class="w-3.5 h-3.5"></i> Feed</button>
+<button onclick="switchTab('map')" id="mobile-nav-map" class="py-1 text-gray-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Map</button>
+<button onclick="switchTab('analytics')" id="mobile-nav-analytics" class="py-1 text-gray-400 flex items-center gap-1"><i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Analytics</button>
+</div>
+</header>
+
+<!-- REAL-TIME NOTIFICATION CONTAINER (TOASTS) -->
+<div id="toast-container" class="fixed top-24 sm:top-20 right-3 sm:right-4 z-50 flex flex-col space-y-2.5 max-w-[90vw] sm:max-w-sm pointer-events-none">
+<!-- Dynamic Toast Notifications inserted here -->
+</div>
+
+<!-- MAIN BODY CONTAINER -->
+<main class="flex-grow max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+<!-- LEFT/MAIN CONTENT AREA (8 COLS) -->
+<section class="lg:col-span-8 space-y-5 sm:space-y-6">
+<!-- VIEW 1: FOOD DONATION FEED -->
+<div id="view-feed" class="space-y-5 sm:space-y-6">
+<!-- Hero Banner -->
+<div class="relative overflow-hidden rounded-2xl glass-panel p-5 sm:p-8 border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 via-darkbg to-teal-950/30">
+<div class="relative z-10 max-w-xl space-y-2.5 sm:space-y-3">
+<span class="inline-flex items-center px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+<i data-lucide="sparkles" class="w-3 h-3 mr-1"></i> Zero Food Waste Initiative
+</span>
+<h1 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">Bridge Surplus Food with Hungry Lives in Real-Time</h1>
+<p class="text-xs sm:text-sm text-gray-300">Connect verified donors, active delivery volunteers, and registered NGOs to seamlessly distribute meals safely.</p>
+<div class="pt-1 sm:pt-2 flex flex-wrap gap-2.5 sm:gap-3">
+<button id="hero-post-btn" onclick="openPostModal()" class="px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-emerald-500/20">
+Share Surplus Food
+</button>
+<button onclick="switchTab('map')" class="px-3.5 sm:px-4 py-2 rounded-xl glass-panel hover:bg-gray-800 text-gray-200 text-xs sm:text-sm font-medium border border-gray-700 transition-all">
+View Active Map
+</button>
+</div>
+</div>
+<div class="absolute right-0 bottom-0 opacity-10 pointer-events-none transform translate-x-1/4 translate-y-1/4 hidden sm:block">
+<i data-lucide="heart-handshake" class="w-80 h-80 md:w-96 md:h-96 text-emerald-400"></i>
+</div>
+</div>
+<!-- Feed Filter Controls -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 glass-panel p-3.5 sm:p-4 rounded-xl">
+<div class="flex items-center space-x-2 w-full sm:w-auto">
+<span class="text-xs text-gray-400 uppercase font-semibold shrink-0">Filter:</span>
+<select id="feed-filter" onchange="renderPosts()" class="w-full sm:w-auto bg-gray-900/80 border border-gray-700 text-gray-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-500">
+<option value="all">All Donations</option>
+<option value="Approved">Available / Pending Pickup</option>
+<option value="In Transit">In Transit</option>
+<option value="Delivered">Delivered</option>
+<option value="Pending Verification">Pending Verification</option>
+</select>
+</div>
+<div class="text-[11px] sm:text-xs text-gray-400">
+Showing <span id="feed-count" class="font-bold text-emerald-400">0</span> dynamic donation listing(s)
+</div>
+</div>
+<!-- Posts List Container -->
+<div id="posts-container" class="space-y-3.5 sm:space-y-4">
+<!-- Dynamically populated via JS -->
+</div>
+</div>
+<!-- VIEW 2: LIVE RESCUE MAP -->
+<div id="view-map" class="hidden space-y-3.5 sm:space-y-4">
+<div class="glass-panel p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+<div>
+<h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+<i data-lucide="navigation" class="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400"></i> Live Rescue Route & Tracking Map
+</h2>
+<p class="text-[11px] sm:text-xs text-gray-400">Green pins: Donor Locations | Click "Get Route" on any marker or post to calculate distance</p>
+</div>
+<button onclick="centerUserLocation()" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-semibold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-1.5">
+<i data-lucide="locate" class="w-3.5 h-3.5"></i> My GPS
+</button>
+</div>
+<div class="relative w-full rounded-2xl overflow-hidden glass-panel border border-gray-800 shadow-2xl">
+<div id="leaflet-map"></div>
+</div>
+</div>
+<!-- VIEW 3: IMPACT METRICS & CHART ANALYTICS -->
+<div id="view-analytics" class="hidden space-y-6">
+<div class="glass-panel p-4 sm:p-6 rounded-2xl border border-gray-800 space-y-5 sm:space-y-6">
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+<div>
+<h2 class="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+<i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> Impact Metrics & Analytics
+</h2>
+<p class="text-xs text-gray-400">Real-time statistics on food rescued, CO2 offset, and distribution efficiency</p>
+</div>
+<div class="flex items-center space-x-2 self-end sm:self-auto">
+<button onclick="updateChartTimeframe('weekly')" id="btn-chart-weekly" class="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-darkbg font-bold">Weekly</button>
+<button onclick="updateChartTimeframe('monthly')" id="btn-chart-monthly" class="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg glass-panel hover:bg-gray-800 text-gray-300">Monthly</button>
+<button onclick="exportAuditPDF()" class="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+<i data-lucide="download" class="w-3.5 h-3.5"></i> Export Log
+</button>
+</div>
+</div>
+<!-- Chart Canvas -->
+<div class="relative w-full h-[260px] sm:h-[320px] pt-2">
+<canvas id="analyticsChart"></canvas>
+</div>
+<!-- Summary Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-gray-800">
+<div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+<span class="text-[10px] sm:text-xs text-gray-400">Total Meals Saved</span>
+<div class="text-lg sm:text-xl font-extrabold text-emerald-400 mt-0.5">4,280+</div>
+</div>
+<div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+<span class="text-[10px] sm:text-xs text-gray-400">CO<sub>2</sub> Offset (kg)</span>
+<div class="text-lg sm:text-xl font-extrabold text-teal-300 mt-0.5">1,140</div>
+</div>
+<div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+<span class="text-[10px] sm:text-xs text-gray-400">Active Volunteers</span>
+<div class="text-lg sm:text-xl font-extrabold text-blue-400 mt-0.5">86</div>
+</div>
+<div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+<span class="text-[10px] sm:text-xs text-gray-400">Delivery Efficiency</span>
+<div class="text-lg sm:text-xl font-extrabold text-purple-400 mt-0.5">98.4%</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- RIGHT SIDEBAR (4 COLS) -->
+<aside class="lg:col-span-4 space-y-5 sm:space-y-6">
+<!-- USER STATUS / QUICK ROLE PROFILE CARD -->
+<div class="glass-panel p-4 sm:p-5 rounded-2xl border border-gray-800 space-y-3.5 sm:space-y-4">
+<div class="flex items-center justify-between">
+<span class="text-xs uppercase font-bold text-gray-400 tracking-wider">Active Role</span>
+<span id="user-role-badge" class="px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+Donor
+</span>
+</div>
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-md shrink-0">
+<span id="user-avatar-initials">D</span>
+</div>
+<div class="overflow-hidden">
+<h3 id="user-display-name" class="font-bold text-white text-sm sm:text-base truncate">Guest Donor</h3>
+<p id="user-email-text" class="text-xs text-gray-400 truncate">donor@sharebite.org</p>
+</div>
+</div>
+<div class="pt-2 border-t border-gray-800/80 text-xs text-gray-400 space-y-1">
+<div class="flex justify-between">
+<span>Role Switch Lock:</span>
+<span id="role-lock-status" class="text-emerald-400 font-semibold">Active Profile Locked</span>
+</div>
+</div>
+</div>
+<!-- GAMIFICATION & VOLUNTEER LEADERBOARD -->
+<div class="glass-panel p-4 sm:p-5 rounded-2xl border border-gray-800 space-y-3.5 sm:space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+<i data-lucide="trophy" class="w-4 h-4 text-yellow-400"></i> Top Rescue Volunteers
+</h3>
+<span class="text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded-full">Gamified</span>
+</div>
+<div class="space-y-2.5 sm:space-y-3" id="leaderboard-container">
+<!-- Dynamic rendering via JS -->
+</div>
+</div>
+<!-- AUDIT LOG & RECENT ACTIVITY -->
+<div class="glass-panel p-4 sm:p-5 rounded-2xl border border-gray-800 space-y-3.5 sm:space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+<i data-lucide="history" class="w-4 h-4 text-emerald-400"></i> Live Platform Audit Log
+</h3>
+<button onclick="exportAuditPDF()" class="text-[11px] text-emerald-400 hover:underline">Download Log</button>
+</div>
+<div id="audit-log-list" class="space-y-2 max-h-52 sm:max-h-56 overflow-y-auto custom-scrollbar pr-1 text-xs">
+<!-- Dynamic Log items -->
+</div>
+</div>
+</aside>
+</main>
+
+<!-- FOOTER -->
+<footer class="w-full glass-panel border-t border-gray-800 mt-8 sm:mt-12 py-5 sm:py-6 px-4 text-center text-xs text-gray-500">
+<div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+<p>© 2026 ShareBite Platform. Bridging Food Security & Zero Waste.</p>
+<div class="flex items-center space-x-4">
+<a href="#" class="hover:text-emerald-400 transition-colors">Privacy Policy</a>
+<a href="#" class="hover:text-emerald-400 transition-colors">Safety Guidelines</a>
+<a href="#" class="hover:text-emerald-400 transition-colors">API Docs</a>
+</div>
+</div>
+</footer>
+
+<!-- MODALS SECTION -->
+<!-- 1. POST SURPLUS FOOD MODAL -->
+<div id="modal-post-food" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
+<div class="glass-panel max-w-lg w-full rounded-2xl border border-gray-700 p-5 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative max-h-[92vh] overflow-y-auto custom-scrollbar">
+<button onclick="closePostModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white p-1">
+<i data-lucide="x" class="w-5 h-5"></i>
+</button>
+<div class="flex items-center gap-3">
+<div class="p-2 sm:p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+<i data-lucide="package-plus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+</div>
+<div>
+<h3 class="text-base sm:text-lg font-bold text-white">Post Surplus Food</h3>
+<p class="text-[11px] sm:text-xs text-gray-400">Submit food details for admin verification and volunteer pickup.</p>
+</div>
+</div>
+<form id="form-post-food" onsubmit="handlePostFood(event)" class="space-y-3.5 sm:space-y-4">
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Food Item Title</label>
+<input type="text" id="post-title" required placeholder="e.g., 50 Fresh Meal Boxes (Rice & Chicken Curry)" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500">
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Quantity/Servings</label>
+<input type="text" id="post-quantity" required placeholder="e.g., 40 meals/15 kg" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500">
+</div>
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Expiry Window</label>
+<input type="text" id="post-expiry" required placeholder="e.g., 4 Hours" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500">
+</div>
+</div>
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1 flex items-center justify-between">
+<span>Pickup Location Address</span>
+<span class="text-[10px] text-emerald-400 font-normal">Auto GPS Reverse Geocoded</span>
+</label>
+<div class="relative">
+<input type="text" id="post-location" readonly required placeholder="Detecting live GPS location..." class="w-full bg-gray-800/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs text-gray-300 focus:outline-none cursor-not-allowed">
+<i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 absolute right-3 top-2.5 sm:top-3"></i>
+</div>
+</div>
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Food Category</label>
+<select id="post-category" required class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500">
+<option value="" disabled selected>Select food category</option>
+<option value="Cooked Meal">Cooked Meal</option>
+<option value="Bakery Snacks">Bakery Snacks</option>
+<option value="Raw Meal">Raw Meal</option>
+<option value="Packaged Food">Packaged Food</option>
+</select>
+</div>
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Food Photo URL</label>
+<input type="text" id="post-photo" placeholder="https://images.unsplash.com/photo-1546069901-ba9599a7e63c" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500">
+</div>
+<div>
+<label class="block text-xs font-semibold text-gray-300 mb-1">Special Handling Instructions</label>
+<textarea id="post-notes" rows="2" placeholder="e.g., Kept warm in sealed thermal containers. Call on arrival." class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"></textarea>
+</div>
+<div class="pt-2 flex justify-end space-x-3">
+<button type="button" onclick="closePostModal()" class="px-4 py-2 rounded-xl glass-panel text-gray-300 text-xs sm:text-sm hover:bg-gray-800">Cancel</button>
+<button type="submit" class="px-4 sm:px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-500/20">Submit Food Post</button>
+</div>
+</form>
+</div>
+</div>
+
+<!-- 2. AUTH MODAL (LOGIN/REGISTER/FORGOT OTP) -->
+<div id="modal-auth" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+<div class="glass-panel max-w-md w-full rounded-2xl border border-gray-700 p-5 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative max-h-[92vh] overflow-y-auto custom-scrollbar">
+<button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white p-1">
+<i data-lucide="x" class="w-5 h-5"></i>
+</button>
+<!-- SUB-VIEW A: LOGIN -->
+<div id="auth-sub-login" class="space-y-4">
+<div class="text-center space-y-1">
+<h3 class="text-lg sm:text-xl font-bold text-white">Welcome Back</h3>
+<p class="text-xs text-gray-400">Sign in to manage food posts & rescue operations</p>
+</div>
+<form onsubmit="handleAuthLogin(event)" class="space-y-3">
+<div>
+<label class="block text-xs text-gray-300 mb-1">Select Role</label>
+<select id="login-role" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white focus:border-emerald-500">
+<option value="Donor">Donor (Restaurant/Caterer)</option>
+<option value="Volunteer">Volunteer (Delivery Hero)</option>
+<option value="NGO">Organization/NGO</option>
+<option value="Admin">System Administrator</option>
+</select>
+</div>
+<div>
+<label class="block text-xs text-gray-300 mb-1">Email Address</label>
+<input type="email" id="login-email" required placeholder="admin@sharebite.org" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-emerald-500">
+</div>
+<div>
+<div class="flex justify-between items-center mb-1">
+<label class="text-xs text-gray-300">Password</label>
+<button type="button" onclick="showAuthSub('forgot')" class="text-[11px] text-emerald-400 hover:underline">Forgot OTP?</button>
+</div>
+<input type="password" id="login-password" required placeholder="........" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-emerald-500">
+</div>
+<div class="p-2.5 bg-gray-900/60 rounded-xl border border-gray-800 text-[11px] text-gray-400 flex items-center justify-between">
+<span>Preset Admin: <strong class="text-white">rmisbah2019@gmail.com</strong></span>
+<span class="text-emerald-400 font-mono">Pass: admin123</span>
+</div>
+<button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-500/20">Sign In</button>
+</form>
+<div class="text-center text-xs text-gray-400">
+Don't have an account? <button onclick="showAuthSub('register')" class="text-emerald-400 hover:underline font-semibold">Register Here</button>
+</div>
+</div>
+<!-- SUB-VIEW B: REGISTER -->
+<div id="auth-sub-register" class="hidden space-y-4">
+<div class="text-center space-y-1">
+<h3 class="text-lg sm:text-xl font-bold text-white">Create Platform Account</h3>
+<p class="text-xs text-gray-400">Join our network of food donors & rescue heroes</p>
+</div>
+<form onsubmit="handleAuthRegister(event)" class="space-y-3">
+<div>
+<label class="block text-xs text-gray-300 mb-1">Full Name / Org Name</label>
+<input type="text" id="reg-name" required placeholder="Green Valley Hotel" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white">
+</div>
+<div>
+<label class="block text-xs text-gray-300 mb-1">Account Role</label>
+<select id="reg-role" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white">
+<option value="Donor">Donor</option>
+<option value="Volunteer">Volunteer</option>
+<option value="NGO">Organization / NGO</option>
+</select>
+</div>
+<div>
+<label class="block text-xs text-gray-300 mb-1">Email Address</label>
+<input type="email" id="reg-email" required placeholder="contact@greenvalley.com" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white">
+</div>
+<div>
+<label class="block text-xs text-gray-300 mb-1">Password</label>
+<input type="password" id="reg-password" required placeholder="........" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white">
+</div>
+<button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm shadow-md">Complete Registration</button>
+</form>
+<div class="text-center text-xs text-gray-400">
+Already registered? <button onclick="showAuthSub('login')" class="text-emerald-400 hover:underline font-semibold">Sign In</button>
+</div>
+</div>
+<!-- SUB-VIEW C: GMAIL OTP FORGOT PASSWORD -->
+<div id="auth-sub-forgot" class="hidden space-y-4">
+<div class="text-center space-y-1">
+<h3 class="text-lg sm:text-xl font-bold text-white">Gmail OTP Verification</h3>
+<p class="text-xs text-gray-400">Reset credentials securely via 6-digit OTP</p>
+</div>
+<div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center">
+<span class="text-xs text-gray-300 block">OTP Valid Timer (Countdown)</span>
+<span id="otp-timer" class="text-2xl font-mono font-bold text-emerald-400">23:00</span>
+</div>
+<form onsubmit="handleSendOTP(event)" id="otp-send-form" class="space-y-3">
+<div>
+<label class="block text-xs text-gray-300 mb-1">Enter Gmail Address</label>
+<input type="email" id="otp-email" required placeholder="your.name@gmail.com" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white">
+</div>
+<button type="submit" class="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white font-semibold text-xs sm:text-sm">Request 6-Digit OTP</button>
+</form>
+<form onsubmit="handleVerifyOTP(event)" id="otp-verify-form" class="hidden space-y-3">
+<div>
+<label class="block text-xs text-gray-300 mb-1">Enter 6-Digit OTP</label>
+<input type="text" id="otp-code" maxlength="6" required placeholder="849201" class="w-full bg-gray-900/90 border border-emerald-500 text-center tracking-widest text-lg font-mono rounded-xl px-3.5 py-2 text-white">
+</div>
+<div>
+<label class="block text-xs text-gray-300 mb-1">New Password</label>
+<input type="password" id="otp-new-pass" required placeholder="........" class="w-full bg-gray-900/90 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white">
+</div>
+<button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm">Reset Password & Login</button>
+</form>
+<div class="text-center text-xs">
+<button onclick="showAuthSub('login')" class="text-gray-400 hover:text-white">← Return to Login</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 3. RATING & FEEDBACK MODAL (POST-DELIVERY) -->
+<div id="modal-rating" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
+<div class="glass-panel max-w-sm w-full rounded-2xl border border-gray-700 p-5 sm:p-6 space-y-4 shadow-2xl text-center">
+<div class="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center mx-auto border border-yellow-500/30">
+<i data-lucide="star" class="w-6 h-6"></i>
+</div>
+<h3 class="text-base sm:text-lg font-bold text-white">Rate Rescue Quality</h3>
+<p class="text-xs text-gray-300">How was the food delivery experience and handling quality?</p>
+<!-- Star Rating Input -->
+<div class="flex items-center justify-center space-x-2 text-gray-600" id="star-rating-box">
+<i data-lucide="star" onclick="setRating(1)" class="w-7 h-7 sm:w-8 sm:h-8 cursor-pointer hover:text-yellow-400 transition-colors star-icon"></i>
+<i data-lucide="star" onclick="setRating(2)" class="w-7 h-7 sm:w-8 sm:h-8 cursor-pointer hover:text-yellow-400 transition-colors star-icon"></i>
+<i data-lucide="star" onclick="setRating(3)" class="w-7 h-7 sm:w-8 sm:h-8 cursor-pointer hover:text-yellow-400 transition-colors star-icon"></i>
+<i data-lucide="star" onclick="setRating(4)" class="w-7 h-7 sm:w-8 sm:h-8 cursor-pointer hover:text-yellow-400 transition-colors star-icon"></i>
+<i data-lucide="star" onclick="setRating(5)" class="w-7 h-7 sm:w-8 sm:h-8 cursor-pointer hover:text-yellow-400 transition-colors star-icon"></i>
+</div>
+<textarea id="rating-comments" rows="2" placeholder="Write optional feedback..." class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"></textarea>
+<button onclick="submitRating()" class="w-full py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-darkbg font-bold text-xs sm:text-sm shadow-md">
+Submit Feedback
+</button>
+</div>
+</div>
+
+<!-- 4. FLOATING REAL-TIME CHAT DRAWER -->
+<div id="chat-drawer" class="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-40 w-[92vw] sm:w-80 md:w-96 glass-panel rounded-2xl border border-gray-700 shadow-2xl transition-all transform translate-y-[120%] flex flex-col h-[460px] sm:h-[500px]">
+<!-- Chat Header -->
+<div class="p-3 sm:p-3.5 border-b border-gray-800 flex items-center justify-between bg-gray-900/80 rounded-t-2xl">
+<div class="flex items-center space-x-2.5">
+<div class="relative">
+<div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-500 flex items-center justify-center text-darkbg font-bold text-xs">
+SB
+</div>
+<span class="w-2.5 h-2.5 bg-emerald-400 rounded-full absolute bottom-0 right-0 border border-gray-900"></span>
+</div>
+<div>
+<h4 class="text-xs font-bold text-white flex items-center gap-1.5">
+শুদ্ধ বাংলা রোবট সহকারী <span class="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 rounded text-[9px]">ভয়েস সক্রিয়</span>
+</h4>
+<span class="text-[10px] text-gray-400">বাংলায় বা ইংরেজিতে প্রশ্ন করুন</span>
+</div>
+</div>
+<div class="flex items-center space-x-1">
+<button onclick="toggleBotVoiceOutput()" id="bot-voice-toggle" title="Toggle Voice Speech" class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs">
+<i data-lucide="volume-2" class="w-4 h-4"></i>
+</button>
+<button onclick="toggleChatDrawer()" class="text-gray-400 hover:text-white p-1">
+<i data-lucide="minus" class="w-4 h-4"></i>
+</button>
+</div>
+</div>
+
+<!-- Quick Clickable Sample Questions Container -->
+<div class="px-3 py-2 bg-gray-900/90 border-b border-gray-800 flex flex-wrap gap-1.5 overflow-x-auto text-[11px]">
+<button onclick="sendPresetQuestion('ShareBite actually ki ebong ki kaj kore?')" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg whitespace-nowrap">📌 শেয়ারবাইট কী?</button>
+<button onclick="sendPresetQuestion('Donor role ki ebong kivabe khabar post kore?')" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg whitespace-nowrap">🍲 ডোনর রোল</button>
+<button onclick="sendPresetQuestion('User ba volunteer kivabe route ebong distance count kore?')" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg whitespace-nowrap">🗺️ রুট ও দূরত্ব</button>
+<button onclick="sendPresetQuestion('What is ShareBite?')" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg whitespace-nowrap">🌐 What is ShareBite?</button>
+</div>
+
+<!-- Chat Messages Body -->
+<div id="chat-messages" class="flex-grow p-3 sm:p-4 overflow-y-auto custom-scrollbar space-y-3 text-xs">
+<!-- Messages inserted dynamically -->
+</div>
+<!-- Chat Input Form -->
+<form onsubmit="handleSendChatMessage(event)" class="p-2.5 sm:p-3 border-t border-gray-800 bg-gray-900/80 rounded-b-2xl flex items-center space-x-2">
+<input type="text" id="chat-input" required placeholder="বাংলায় বা ইংরেজিতে লিখুন..." class="flex-grow bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+<button type="submit" class="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-md">
+<i data-lucide="send" class="w-4 h-4"></i>
+</button>
+</form>
+</div>
+
+<!-- JAVASCRIPT LOGIC & APPLICATION STATE -->
+<script>
+const API_BASE = "http://localhost:5000/api";
+
+/* GLOBAL APPLICATION STATE */
+const state = {
+  currentUser: {
+    name: 'Guest Donor',
+    email: 'donor@sharebite.org',
+    role: 'Donor', // Donor, Volunteer, NGO, Admin
+    isLoggedIn: false
+  },
+  posts: [],
+  leaderboard: [
+    { rank: 1, name: 'Rahim Rescue Hero', points: 1240, completed: 42, badge: 'Eco Titan' },
+    { rank: 2, name: 'Anika Rahman', points: 980, completed: 31, badge: 'Golden Deliverer' },
+    { rank: 3, name: 'Tanvir Hossain', points: 750, completed: 24, badge: 'Community Star' }
+  ],
+  chatMessages: [
+    { sender: 'শেয়ারবাইট রোবট সহকারী', text: 'আসসালামু আলাইকুম! আমি আপনার শেয়ারবাইট এআই রোবট সহকারী। শেয়ারবাইট প্ল্যাটফর্ম, ডোনর রোল, ইউজার রোল, লাইভ রুট এবং দূরত্ব হিসাব করা সংক্রান্ত যেকোনো তথ্য জানতে ওপরে দেওয়া প্রশ্নগুলোতে ক্লিক করুন অথবা নিচে টাইপ করুন।', time: '১০:০০ AM', isSelf: false },
+    { sender: 'Rahim Rescue Hero', text: 'I am en route to Dhanmondi Road 27 for Post #102 pickup.', time: '১০:১৪ AM', isSelf: false }
+  ],
+  auditLogs: [
+    { time: '১০:১৫ AM', text: 'Rahim Rescue Hero accepted pickup for POST-102' },
+    { time: '১০:০৫ AM', text: 'Grand Palace Catering created new food listing POST-101' },
+    { time: '০৯:৪০ AM', text: 'Admin approved donation POST-101 for public dispatch' }
+  ],
+  map: null,
+  mapMarkers: [],
+  routingControl: null,
+  chartInstance: null,
+  otpCountdownInterval: null,
+  otpRemainingSeconds: 1380, // 23:00 minutes
+  currentRatingValue: 5,
+  voiceEnabled: true
+};
+
+/* INITIALIZATION */
+window.onload = function() {
+  if (window.lucide) lucide.createIcons();
+  renderAuthControls();
+  fetchDonationsFromDB();
+  renderLeaderboard();
+  renderAuditLogs();
+  renderChatMessages();
+  initLeafletMap();
+  initAnalyticsChart();
+  startOTPTimer();
+
+  window.addEventListener('resize', () => {
+    if (state.map) {
+      state.map.invalidateSize();
+    }
+  });
+};
+
+/* NAVIGATION TAB SWITCHING */
+function switchTab(tabId) {
+  document.querySelectorAll('.nav-link').forEach(btn => {
+    btn.classList.remove('text-emerald-400', 'bg-emerald-500/10', 'border', 'border-emerald-500/30');
+    btn.classList.add('text-gray-300');
+  });
+
+  const activeBtn = document.getElementById(`nav-${tabId}`);
+  if (activeBtn) {
+    activeBtn.classList.add('text-emerald-400', 'bg-emerald-500/10', 'border', 'border-emerald-500/30');
+    activeBtn.classList.remove('text-gray-300');
+  }
+
+  ['feed', 'map', 'analytics'].forEach(t => {
+    const mobileBtn = document.getElementById(`mobile-nav-${t}`);
+    if (mobileBtn) {
+      if (t === tabId) {
+        mobileBtn.className = "py-1 text-emerald-400 font-bold flex items-center gap-1";
+      } else {
+        mobileBtn.className = "py-1 text-gray-400 flex items-center gap-1";
+      }
+    }
+  });
+
+  document.getElementById('view-feed').classList.add('hidden');
+  document.getElementById('view-map').classList.add('hidden');
+  document.getElementById('view-analytics').classList.add('hidden');
+  document.getElementById(`view-${tabId}`).classList.remove('hidden');
+
+  if (tabId === 'map' && state.map) {
+    setTimeout(() => {
+      state.map.invalidateSize();
+      refreshMapPins();
+    }, 200);
+  }
+}
+
+/* RENDER AUTH SECTION TOP BAR & ROLE VISIBILITY */
+function renderAuthControls() {
+  const container = document.getElementById('auth-section');
+  if (state.currentUser.isLoggedIn) {
+    container.innerHTML = `
+      <div class="flex items-center space-x-2">
+        <button onclick="handleLogout()" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-[11px] sm:text-xs font-semibold transition-all">
+          Sign Out
+        </button>
+      </div>
+    `;
+  } else {
+    container.innerHTML = `
+      <button onclick="openAuthModal('login')" class="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl glass-panel hover:bg-gray-800 text-gray-200 text-xs sm:text-sm font-medium border border-gray-700/80 transition-all">
+        Sign In
+      </button>
+    `;
+  }
+
+  const role = (state.currentUser.role || '').toLowerCase();
+  const topBtn = document.getElementById('top-post-btn');
+  const heroBtn = document.getElementById('hero-post-btn');
+  if (state.currentUser.isLoggedIn && role === 'volunteer') {
+    if (topBtn) topBtn.style.display = 'none';
+    if (heroBtn) heroBtn.style.display = 'none';
+  } else {
+    if (topBtn) topBtn.style.display = 'flex';
+    if (heroBtn) heroBtn.style.display = 'inline-block';
+  }
+
+  document.getElementById('user-display-name').innerText = state.currentUser.name;
+  document.getElementById('user-email-text').innerText = state.currentUser.email;
+  document.getElementById('user-role-badge').innerText = state.currentUser.role;
+  document.getElementById('user-avatar-initials').innerText = state.currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('role-lock-status').innerText = state.currentUser.isLoggedIn ? `${state.currentUser.role} Active` : 'Guest Mode';
+}
+
+/* FETCH DONATIONS FROM MONGODB DATABASE */
+async function fetchDonationsFromDB() {
+  try {
+    const response = await fetch(`${API_BASE}/donations`);
+    const data = await response.json();
+    if (response.ok) {
+      state.posts = data.map(item => ({
+        id: item._id,
+        donorName: item.donor,
+        title: item.title,
+        quantity: item.quantity,
+        location: item.location,
+        expiry: item.expiry,
+        notes: item.type || 'Cooked Meal',
+        photo: item.photo || '',
+        status: item.status,
+        volunteer: null,
+        lat: item.lat,
+        lng: item.lng,
+        time: item.time || 'Just now'
+      }));
+      renderPosts();
+      refreshMapPins();
+    }
+  } catch (err) {
+    console.error('Failed to fetch donations from database', err);
+  }
+}
+
+/* RENDER DONATION POST CARDS */
+function renderPosts() {
+  const container = document.getElementById('posts-container');
+  const filterValue = document.getElementById('feed-filter').value;
+  container.innerHTML = '';
+  let filtered = state.posts;
+  if (filterValue !== 'all') {
+    filtered = state.posts.filter(p => p.status === filterValue);
+  }
+  document.getElementById('feed-count').innerText = filtered.length;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="glass-panel p-8 rounded-2xl text-center text-gray-400 text-sm">
+        No food donation posts match the selected filter criteria.
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(post => {
+    let badgeColor = 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
+    if (post.status === 'Approved') badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+    if (post.status === 'In Transit') badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+    if (post.status === 'Delivered') badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+
+    let actionHTML = '';
+    const userRole = (state.currentUser.role || '').toLowerCase();
+    
+    if (userRole === 'admin' && (post.status === 'Pending Verification' || post.status === 'Pending')) {
+      actionHTML = `
+        <button onclick="updateDonationStatus('${post.id}', 'Approved')" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all">
+          Approve
+        </button>
+        <button onclick="updateDonationStatus('${post.id}', 'Rejected')" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold transition-all">
+          Reject
+        </button>
+      `;
+    } else if (userRole === 'volunteer' && post.status === 'Approved') {
+      actionHTML = `
+        <button onclick="volunteerAcceptPost('${post.id}')" class="px-3 sm:px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all flex items-center gap-1">
+          <i data-lucide="truck" class="w-3.5 h-3.5"></i> Accept & Route
+        </button>
+      `;
+    } else if (userRole === 'volunteer' && post.status === 'In Transit') {
+      actionHTML = `
+        <button onclick="updateDonationStatus('${post.id}', 'Delivered')" class="px-3 sm:px-3.5 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold transition-all flex items-center gap-1">
+          <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Complete Delivery
+        </button>
+      `;
+    }
+
+    const postCard = `
+      <div class="glass-panel p-4 sm:p-5 rounded-2xl border border-gray-800 hover:border-gray-700 transition-all space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <span class="text-[10px] sm:text-[11px] font-mono text-gray-400">${post.id} • ${post.time}</span>
+            <h3 class="text-sm sm:text-base font-bold text-white mt-0.5 leading-snug">${post.title}</h3>
+            <p class="text-xs text-emerald-400 font-medium">Donor: ${post.donorName} | Category: <span class="text-teal-300 font-semibold">${post.notes}</span></p>
+          </div>
+          <span class="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border shrink-0 ${badgeColor}">
+            ${post.status}
+          </span>
+        </div>
+        ${post.photo ? `<div class="w-full h-36 rounded-xl overflow-hidden border border-gray-800"><img src="${post.photo}" alt="Food Photo" class="w-full h-full object-cover"></div>` : ''}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-300 bg-gray-900/60 p-2.5 sm:p-3 rounded-xl border border-gray-800">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="box" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+            <span><strong>Qty:</strong> ${post.quantity}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-yellow-400 shrink-0"></i>
+            <span><strong>Expiry:</strong> ${post.expiry}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-teal-400 shrink-0"></i>
+            <span class="truncate"><strong>Loc:</strong> ${post.location}</span>
+          </div>
+        </div>
+        <div class="pt-2 border-t border-gray-800 flex items-center justify-between gap-2">
+          <div class="flex items-center space-x-3">
+            <button onclick="showPostOnMap(${post.lat}, ${post.lng}, '${post.title}')" class="text-xs text-emerald-400 hover:underline flex items-center gap-1 shrink-0">
+              <i data-lucide="map" class="w-3 h-3"></i> View Map
+            </button>
+            <button onclick="calculateRouteForPost('${post.id}')" class="text-xs text-teal-300 hover:text-teal-200 font-semibold flex items-center gap-1 shrink-0 bg-teal-500/10 px-2 py-1 rounded-lg border border-teal-500/30">
+              <i data-lucide="navigation" class="w-3 h-3"></i> Get Route
+            </button>
+          </div>
+          <div class="flex items-center space-x-2">
+            ${actionHTML}
+          </div>
+        </div>
+      </div>
+    `;
+    container.innerHTML += postCard;
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+/* TRIGGER ROUTE CALCULATION FROM FEED CARD */
+function calculateRouteForPost(postId) {
+  const post = state.posts.find(p => p.id === postId);
+  if (post) {
+    switchTab('map');
+    drawVolunteerRoute(post);
+  }
+}
+
+/* VOLUNTEER ACCEPT & LIVE ROUTE CALCULATION TO DONOR LOCATION */
+async function volunteerAcceptPost(postId) {
+  await updateDonationStatus(postId, 'In Transit');
+  const post = state.posts.find(p => p.id === postId);
+  if (post) {
+    switchTab('map');
+    drawVolunteerRoute(post);
+  }
+}
+
+/* DRAW REAL-TIME ROUTE & CALCULATE DISTANCE/TIME BETWEEN VOLUNTEER AND DONOR */
+function drawVolunteerRoute(post) {
+  if (!state.map) return;
+
+  if (state.routingControl) {
+    state.map.removeControl(state.routingControl);
+    state.routingControl = null;
+  }
+
+  const calculateAndDraw = (vLat, vLng) => {
+    const donorLatLng = L.latLng(post.lat, post.lng);
+    const volunteerLatLng = L.latLng(vLat, vLng);
+
+    // Volunteer Marker
+    const volIcon = L.divIcon({
+      className: 'vol-pin',
+      html: '<div class="w-8 h-8 rounded-full bg-blue-500 border-2 border-white shadow-xl flex items-center justify-center marker-pulse"><i data-lucide="truck" class="w-4 h-4 text-white"></i></div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+    L.marker([vLat, vLng], { icon: volIcon }).addTo(state.map).bindPopup("<b>Your GPS Position</b>");
+
+    // Leaflet Routing Machine Engine
+    state.routingControl = L.Routing.control({
+      waypoints: [volunteerLatLng, donorLatLng],
+      lineOptions: {
+        styles: [{ color: '#38bdf8', opacity: 0.85, weight: 6 }]
+      },
+      createMarker: function() { return null; },
+      show: true,
+      addWaypoints: false,
+      routeWhileDragging: false
+    }).addTo(state.map);
+
+    // Calculate real road distance and time upon route calculation
+    state.routingControl.on('routesfound', function(e) {
+      const routes = e.routes;
+      const summary = routes[0].summary;
+      const distanceKm = (summary.totalDistance / 1000).toFixed(2);
+      const timeMins = Math.round(summary.totalTime / 60);
+
+      showToastNotification(
+        'Route Calculated!', 
+        `Distance: ${distanceKm} km (~${timeMins} mins drive)`, 
+        'success'
+      );
+      addAuditLog(`Calculated route to ${post.title}: ${distanceKm} km, ~${timeMins} mins`);
+    });
+
+    if (window.lucide) lucide.createIcons();
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => calculateAndDraw(pos.coords.latitude, pos.coords.longitude),
+      () => calculateAndDraw(23.7500, 90.3900) // Fallback GPS: Dhaka Central
+    );
+  } else {
+    calculateAndDraw(23.7500, 90.3900);
+  }
+}
+
+/* UPDATE STATUS IN DATABASE */
+async function updateDonationStatus(postId, newStatus) {
+  try {
+    const res = await fetch(`${API_BASE}/donations/${postId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.ok) {
+      showToastNotification('Status Updated', `Donation status updated to ${newStatus}`, 'success');
+      addAuditLog(`Status of donation updated to ${newStatus}`);
+      fetchDonationsFromDB();
+      if (newStatus === 'Delivered') {
+        openRatingModal();
+      }
+    } else {
+      showToastNotification('Error', 'Failed to update status in database', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Error', 'Server connection failed', 'warning');
+  }
+}
+
+/* LEAFLET MAP INTEGRATION */
+function initLeafletMap() {
+  state.map = L.map('leaflet-map', { zoomControl: false, attributionControl: false }).setView([23.78088, 90.41946], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    minZoom: 8
+  }).addTo(state.map);
+  L.control.zoom({ position: 'bottomright' }).addTo(state.map);
+  refreshMapPins();
+}
+
+function refreshMapPins() {
+  if (!state.map) return;
+  state.mapMarkers.forEach(m => state.map.removeLayer(m));
+  state.mapMarkers = [];
+
+  const greenIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: '<div class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white shadow-lg flex items-center justify-center marker-pulse"><i data-lucide="package" class="w-3.5 h-3.5 text-darkbg"></i></div>',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
+  state.posts.forEach(post => {
+    if (post.status !== 'Rejected') {
+      const marker = L.marker([post.lat, post.lng], { icon: greenIcon })
+        .addTo(state.map)
+        .bindPopup(`
+          <div class="p-1.5 text-darkbg font-sans">
+            <b class="text-xs sm:text-sm font-bold text-gray-900">${post.title}</b><br/>
+            <span class="text-[11px] text-gray-700">${post.quantity} - ${post.status}</span><br/>
+            <button onclick="calculateRouteForPost('${post.id}')" class="mt-2 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow">
+              🚀 Get Route
+            </button>
+          </div>
+        `);
+      state.mapMarkers.push(marker);
+    }
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+function showPostOnMap(lat, lng, title) {
+  switchTab('map');
+  if (state.map) {
+    state.map.setView([lat, lng], 15);
+  }
+}
+
+function centerUserLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      state.map.setView([lat, lng], 15);
+      const userIcon = L.divIcon({
+        className: 'user-pin',
+        html: '<div class="w-7 h-7 rounded-full bg-teal-400 border-2 border-white shadow-xl flex items-center justify-center"><i data-lucide="user" class="w-4 h-4 text-darkbg"></i></div>',
+        iconSize: [28, 28]
+      });
+      L.marker([lat, lng], { icon: userIcon }).addTo(state.map)
+        .bindPopup("<b>Your Current GPS Location</b>").openPopup();
+      if (window.lucide) lucide.createIcons();
+    }, () => {
+      showToastNotification('GPS Alert', 'Unable to fetch current GPS coordinates.', 'warning');
+    });
+  }
+}
+
+/* POST FOOD MODAL & SECURITY LOCK */
+function openPostModal() {
+  if (!state.currentUser.isLoggedIn) {
+    showToastNotification('Access Denied', 'Please sign in as a Donor to post food.', 'warning');
+    openAuthModal('login');
+    return;
+  }
+  const role = (state.currentUser.role || '').toLowerCase();
+  if (role !== 'donor' && role !== 'admin') {
+    showToastNotification('Restricted', 'Volunteers and Organizations cannot post surplus food.', 'warning');
+    return;
+  }
+  document.getElementById('modal-post-food').classList.remove('hidden');
+  const locInput = document.getElementById('post-location');
+  locInput.value = "Fetching GPS coordinates...";
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        if (data && data.display_name) {
+          locInput.value = data.display_name.split(',').slice(0, 3).join(',');
+        } else {
+          locInput.value = `GPS: (${lat.toFixed(4)}, ${lng.toFixed(4)}) - Dhaka Central`;
+        }
+      } catch (err) {
+        locInput.value = `GPS: (${lat.toFixed(4)}, ${lng.toFixed(4)}) - Dhaka Central`;
+      }
+    }, () => {
+      locInput.value = "Dhaka City Area (Default GPS)";
+    });
+  } else {
+    locInput.value = "Dhaka City Area (Default GPS)";
+  }
+}
+
+function closePostModal() {
+  document.getElementById('modal-post-food').classList.add('hidden');
+}
+
+async function handlePostFood(e) {
+  e.preventDefault();
+  const title = document.getElementById('post-title').value;
+  const quantity = document.getElementById('post-quantity').value;
+  const expiry = document.getElementById('post-expiry').value;
+  const location = document.getElementById('post-location').value;
+  const category = document.getElementById('post-category').value;
+  const photo = document.getElementById('post-photo').value.trim();
+
+  const newDonation = {
+    title,
+    donor: state.currentUser.name || 'Donor',
+    quantity,
+    location,
+    expiry,
+    type: category,
+    photo: photo,
+    lat: 23.7600 + (Math.random() - 0.5) * 0.05,
+    lng: 90.4000 + (Math.random() - 0.5) * 0.05,
+    status: 'Pending Verification'
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/donations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDonation)
+    });
+    if (res.ok) {
+      addAuditLog(`New food donation post submitted for approval`);
+      showToastNotification('Post Submitted', 'Your surplus food post is pending Admin approval.', 'info');
+      closePostModal();
+      fetchDonationsFromDB();
+      document.getElementById('form-post-food').reset();
+    } else {
+      showToastNotification('Error', 'Failed to save food post in database', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Error', 'Server connection failed', 'warning');
+  }
+}
+
+/* AUTHENTICATION & GMAIL OTP FLOW (DATABASE CONNECTED) */
+function openAuthModal(sub = 'login') {
+  document.getElementById('modal-auth').classList.remove('hidden');
+  showAuthSub(sub);
+}
+
+function closeAuthModal() {
+  document.getElementById('modal-auth').classList.add('hidden');
+}
+
+function showAuthSub(sub) {
+  document.getElementById('auth-sub-login').classList.add('hidden');
+  document.getElementById('auth-sub-register').classList.add('hidden');
+  document.getElementById('auth-sub-forgot').classList.add('hidden');
+  document.getElementById(`auth-sub-${sub}`).classList.remove('hidden');
+}
+
+async function handleAuthLogin(e) {
+  e.preventDefault();
+  const role = document.getElementById('login-role').value.toLowerCase();
+  const emailOrPhone = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailOrPhone, password, role })
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      state.currentUser = {
+        name: data.user.name,
+        email: emailOrPhone,
+        role: data.user.role,
+        isLoggedIn: true
+      };
+      addAuditLog(`User logged in as ${data.user.role} (${emailOrPhone})`);
+      showToastNotification('Authenticated', data.message || 'Login successful', 'success');
+      renderAuthControls();
+      fetchDonationsFromDB();
+      closeAuthModal();
+    } else {
+      showToastNotification('Login Failed', data.error || 'Invalid credentials or role.', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Connection Error', 'Could not connect to the backend server.', 'warning');
+  }
+}
+
+async function handleAuthRegister(e) {
+  e.preventDefault();
+  const name = document.getElementById('reg-name').value.trim();
+  const role = document.getElementById('reg-role').value.toLowerCase();
+  const emailOrPhone = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, emailOrPhone, password, role })
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      showToastNotification('Account Created', data.message || 'Registration successful.', 'success');
+      showAuthSub('login');
+    } else {
+      showToastNotification('Registration Failed', data.error || 'User already exists or failed.', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Connection Error', 'Could not connect to the backend server.', 'warning');
+  }
+}
+
+function handleLogout() {
+  state.currentUser = {
+    name: 'Guest Donor',
+    email: 'donor@sharebite.org',
+    role: 'Donor',
+    isLoggedIn: false
+  };
+  addAuditLog('User logged out');
+  showToastNotification('Signed Out', 'You have been logged out.', 'info');
+  renderAuthControls();
+  fetchDonationsFromDB();
+}
+
+/* OTP COUNTDOWN TIMER & GMAIL API */
+function startOTPTimer() {
+  clearInterval(state.otpCountdownInterval);
+  state.otpCountdownInterval = setInterval(() => {
+    if (state.otpRemainingSeconds > 0) {
+      state.otpRemainingSeconds--;
+      const mins = Math.floor(state.otpRemainingSeconds / 60);
+      const secs = state.otpRemainingSeconds % 60;
+      document.getElementById('otp-timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+  }, 1000);
+}
+
+async function handleSendOTP(e) {
+  e.preventDefault();
+  const emailOrPhone = document.getElementById('otp-email').value.trim();
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/forgot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailOrPhone })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      showToastNotification('OTP Sent', data.message || 'OTP sent successfully to your Gmail.', 'success');
+      document.getElementById('otp-send-form').classList.add('hidden');
+      document.getElementById('otp-verify-form').classList.remove('hidden');
+    } else {
+      showToastNotification('Error', data.error || 'No account found with this email.', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Network Error', 'Could not connect to the backend server.', 'warning');
+  }
+}
+
+async function handleVerifyOTP(e) {
+  e.preventDefault();
+  const emailOrPhone = document.getElementById('otp-email').value.trim();
+  const otp = document.getElementById('otp-code').value.trim();
+  const newPassword = document.getElementById('otp-new-pass').value;
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailOrPhone, otp, newPassword })
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      showToastNotification('Password Reset', data.message || 'Password reset successful!', 'success');
+      showAuthSub('login');
+    } else {
+      showToastNotification('Error', data.error || 'Invalid or expired OTP code.', 'warning');
+    }
+  } catch (err) {
+    showToastNotification('Network Error', 'Could not connect to the backend server.', 'warning');
+  }
+}
+
+/* CHART.JS ANALYTICS INTEGRATION */
+function initAnalyticsChart() {
+  const ctx = document.getElementById('analyticsChart').getContext('2d');
+  const weeklyData = {
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    datasets: [
+      {
+        label: 'Meals Rescued',
+        data: [120, 190, 300, 250, 420, 380, 510],
+        borderColor: '#34d399',
+        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+        fill: true,
+        tension: 0.4
+      },
+      {
+        label: 'Deliveries Completed',
+        data: [100, 170, 280, 230, 390, 350, 480],
+        borderColor: '#38bdf8',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        tension: 0.4
+      }
+    ]
+  };
+  state.chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: weeklyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#9ca3af', font: { size: 11 } }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#9ca3af' }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#9ca3af' }
+        }
+      }
+    }
+  });
+}
+
+function updateChartTimeframe(tf) {
+  if (!state.chartInstance) return;
+  document.getElementById('btn-chart-weekly').className = "px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg glass-panel hover:bg-gray-800 text-gray-300";
+  document.getElementById('btn-chart-monthly').className = "px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg glass-panel hover:bg-gray-800 text-gray-300";
+
+  if (tf === 'weekly') {
+    document.getElementById('btn-chart-weekly').className = "px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-darkbg font-bold";
+    state.chartInstance.data.labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    state.chartInstance.data.datasets[0].data = [120, 190, 300, 250, 420, 380, 510];
+  } else {
+    document.getElementById('btn-chart-monthly').className = "px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-darkbg font-bold";
+    state.chartInstance.data.labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    state.chartInstance.data.datasets[0].data = [1200, 1850, 2100, 2450];
+  }
+  state.chartInstance.update();
+}
+
+/* GAMIFICATION LEADERBOARD */
+function renderLeaderboard() {
+  const container = document.getElementById('leaderboard-container');
+  container.innerHTML = '';
+  state.leaderboard.forEach(item => {
+    const row = `
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-gray-900/60 border border-gray-800/80">
+        <div class="flex items-center space-x-2.5 sm:space-x-3">
+          <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-full ${item.rank === 1 ? 'bg-yellow-500 text-darkbg' : 'bg-gray-800 text-gray-300'} font-bold text-[11px] sm:text-xs flex items-center justify-center shrink-0">
+            #${item.rank}
+          </span>
+          <div class="overflow-hidden">
+            <h4 class="text-xs font-bold text-white truncate">${item.name}</h4>
+            <span class="text-[10px] text-emerald-400 font-medium block truncate">${item.badge}</span>
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <span class="text-xs font-extrabold text-white block">${item.points} pts</span>
+          <span class="text-[10px] text-gray-400">${item.completed} pickups</span>
+        </div>
+      </div>
+    `;
+    container.innerHTML += row;
+  });
+}
+
+/* REAL-TIME CHAT DRAWER & BILINGUAL VOICE SYNTHESIS ENGINE */
+function toggleChatDrawer() {
+  const drawer = document.getElementById('chat-drawer');
+  drawer.classList.toggle('translate-y-[120%]');
+  document.getElementById('chat-badge').classList.add('hidden');
+}
+
+function toggleBotVoiceOutput() {
+  state.voiceEnabled = !state.voiceEnabled;
+  const btn = document.getElementById('bot-voice-toggle');
+  if (state.voiceEnabled) {
+    btn.className = "p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs";
+    showToastNotification('ভয়েস সক্রিয়', 'বাংলা ও ইংরেজি ভয়েস সহকারী চালু করা হয়েছে।', 'success');
+  } else {
+    btn.className = "p-1.5 rounded-lg bg-gray-800 text-gray-400 text-xs";
+    window.speechSynthesis.cancel();
+    showToastNotification('ভয়েস বন্ধ', 'ভয়েস সহকারী নিষ্ক্রিয় করা হয়েছে।', 'info');
+  }
+}
+
+/* STRICT SHUDDHO BANGLA & ENGLISH SPEECH ENGINE */
+function speakBotText(text, isEnglish = false) {
+  if (!state.voiceEnabled || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  
+  // Clean markdown symbols
+  let cleanedText = text.replace(/[*#`_~\[\]()]/g, '');
+
+  const utterance = new SpeechSynthesisUtterance(cleanedText);
+  utterance.rate = 0.88;
+  utterance.pitch = 0.90;
+  utterance.volume = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+
+  if (isEnglish) {
+    const englishVoice = voices.find(v => v.lang.startsWith('en') || v.name.toLowerCase().includes('english') || v.name.toLowerCase().includes('us'));
+    if (englishVoice) {
+      utterance.voice = englishVoice;
+      utterance.lang = englishVoice.lang;
+    } else {
+      utterance.lang = 'en-US';
+    }
+  } else {
+    // Select accurate Shuddho Bangla voice
+    const banglaVoice = voices.find(v => 
+      v.lang === 'bn-BD' || 
+      v.lang === 'bn_BD' || 
+      v.lang.toLowerCase().includes('bn') ||
+      v.name.toLowerCase().includes('bengali') ||
+      v.name.toLowerCase().includes('bangla')
+    );
+    if (banglaVoice) {
+      utterance.voice = banglaVoice;
+      utterance.lang = banglaVoice.lang;
+    } else {
+      utterance.lang = 'bn-BD';
+    }
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.onvoiceschanged = function() {
+    window.speechSynthesis.getVoices();
+  };
+}
+
+function renderChatMessages() {
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+  state.chatMessages.forEach(msg => {
+    const messageHTML = `
+      <div class="flex flex-col ${msg.isSelf ? 'items-end' : 'items-start'}">
+        <span class="text-[10px] text-gray-400 mb-0.5">${msg.sender} • ${msg.time}</span>
+        <div class="px-3 py-2 rounded-2xl max-w-[85%] ${msg.isSelf ? 'bg-emerald-500 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none'}">
+          ${msg.text}
+        </div>
+      </div>
+    `;
+    container.innerHTML += messageHTML;
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendPresetQuestion(questionText) {
+  document.getElementById('chat-input').value = questionText;
+  const fakeEvent = { preventDefault: () => {} };
+  handleSendChatMessage(fakeEvent);
+}
+
+function handleSendChatMessage(e) {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  // User message
+  state.chatMessages.push({
+    sender: state.currentUser.name,
+    text: text,
+    time: timeStr,
+    isSelf: true
+  });
+  input.value = '';
+  renderChatMessages();
+
+  // UPGRADED & FIXED BILINGUAL LANGUAGE DETECTION LOGIC
+  // Checks if text contains Bengali Unicode characters or specific Bangla trigger keywords
+  const hasBengaliScript = /[\u0980-\u09FF]/.test(text);
+  const banglaKeywords = ['sharebite', 'ki', 'kibabe', 'role', 'route', 'distance', 'otp', 'admin', 'donor'];
+  // If typed in pure English without any Bengali script or intent, it's English. Otherwise, it defaults to Bangla!
+  const isEnglishQuery = /^[a-zA-Z0-9\s?.,!#@$%^&*()-]+$/.test(text) && !hasBengaliScript && (text.split(' ').length > 2 || banglaKeywords.some(kw => text.toLowerCase().includes('what') || text.toLowerCase().includes('how') || text.toLowerCase().includes('explain')));
+
+  // Smart Bilingual AI Assistant Intelligence Engine
+  setTimeout(() => {
+    let botReply = isEnglishQuery 
+      ? "I understand your question. I am ready to assist you on ShareBite."
+      : "আপনার প্রশ্নটি আমি বুঝতে পেরেছি। শেয়ারবাইট প্ল্যাটফর্মে আপনাকে সার্বিক সহযোগিতা করতে আমি প্রস্তুত।";
+    
+    const query = text.toLowerCase();
+
+    // 1. Inappropriate / Abusive Content Filter (Safety Control)
+    const badWords = ['abuse', 'hate', 'bad', 'faltu', 'kharap', 'pagol', 'marbo', 'baje', 'fuck', 'shit', 'idiot', 'sala', 'bal'];
+    const hasBadWord = badWords.some(w => query.includes(w));
+
+    if (hasBadWord) {
+      botReply = isEnglishQuery 
+        ? "⚠️ Warning: Abusive or inappropriate language is strictly prohibited in the ShareBite community. Please communicate professionally."
+        : "⚠️ সতর্কবার্তা: শেয়ারবাইট কমিউনিটিতে যেকোনো ধরনের অপ্রীতিকর বা অনুপযুক্ত ভাষা ব্যবহার করা সম্পূর্ণ নিষেধ। অনুগ্রহ করে শালীন ও পেশাদার ভাষায় কথা বলুন।";
+    } 
+    // 2. What is ShareBite & How it works
+    else if (query.includes('sharebite') && (query.includes('ki') || query.includes('what') || query.includes('actually') || query.includes('kaj') || query.includes('work'))) {
+      botReply = isEnglishQuery
+        ? "ShareBite is a real-time zero food waste and surplus food distribution platform. It connects verified donors, admin approval systems, and delivery volunteers to seamlessly rescue and distribute meals to those in need."
+        : "শেয়ারবাইট (ShareBite) হলো একটি রিয়েল-টাইম জিরো ফুড ওয়েস্ট বা খাদ্য অপচয় রোধকারী প্ল্যাটফর্ম। এর মাধ্যমে রেস্তোরাঁ ও ক্যাটারারদের উদ্বৃত্ত খাবার নষ্ট না করে দুস্থদের মাঝে নিরাপদে বিতরণ করা হয়। এটি তিনটি ধাপে কাজ করে: ১. দাতা বা ডোনর খাবার পোস্ট করেন, ২. অ্যাডমিন তা যাচাই করে অনুমোদন দেন, এবং ৩. স্বেচ্ছাসেবীরা লাইভ ম্যাপ রুট অনুসরণ করে দ্রুত খাবার সংগ্রহ ও বিতরণ সম্পন্ন করেন।";
+    } 
+    // 3. Donor Role
+    else if (query.includes('donor') || query.includes('ডোনর') || query.includes('post') || query.includes('খাবার পোস্ট')) {
+      botReply = isEnglishQuery
+        ? "The Donor role is designed for restaurants, hotels, and caterers. Donors can sign in, click 'Post Food', and enter meal details, quantity, and expiry. The system auto-detects GPS location and submits it for admin verification."
+        : "ডোনর (Donor) রোল হলো রেস্তোরাঁ, হোটেল কিংবা ক্যাটারিং সার্ভিসের জন্য। ডোনররা সাইন ইন করে 'Post Food' বাটনে ক্লিক করে খাবারের নাম, পরিমাণ, মেয়াদ ও ক্যাটাগরি দিতে পারেন। সিস্টেম স্বয়ংক্রিয়ভাবে জিপিএস লোকেশন শনাক্ত করে এবং অ্যাডমিনের অনুমোদনের জন্য পোস্টটি ফিডে যুক্ত করে দেয়।";
+    } 
+    // 4. Route and Distance Calculation
+    else if (query.includes('route') || query.includes('distance') || query.includes('দূরত্ব') || query.includes('রুট') || query.includes('count') || query.includes('map')) {
+      botReply = isEnglishQuery
+        ? "Route and distance calculation is powered by Leaflet Routing Machine. Clicking 'Get Route' on any donor pin calculates the exact road distance in kilometers and estimated travel time in minutes from the volunteer's GPS position."
+        : "রুট এবং দূরত্ব হিসাব করার জন্য আমাদের অ্যাপে লিফলেট রাউটিং মেশিন ইন্টিগ্রেটেড রয়েছে। যেকোনো ডোনর কার্ড বা ম্যাপ পিনের 'Get Route' বাটনে ক্লিক করলে সিস্টেম স্বেচ্ছাসেবীর বর্তমান জিপিএস অবস্থান থেকে দাতার অবস্থান পর্যন্ত সড়কপথের সঠিক দূরত্ব (কিলোমিটার) এবং আনুমানিক সময় (মিনিট) স্বয়ংক্রিয়ভাবে হিসাব করে নীল রঙের লাইনে ম্যাপে রুট এঁকে দেয়।";
+    } 
+    // 5. User / Volunteer Role
+    else if (query.includes('user') || query.includes('volunteer') || query.includes('ভলান্টিয়ার') || query.includes('ব্যবহারকারী')) {
+      botReply = isEnglishQuery
+        ? "ShareBite includes multiple user roles: Donors post surplus food, Volunteers/Delivery Heroes rescue and deliver meals, NGOs receive food, and Admins manage safety verifications."
+        : "শেয়ারবাইটে বিভিন্ন ব্যবহারকারী বা রোল রয়েছে: ডোনররা খাবার পোস্ট করেন, ভলান্টিয়ার বা ডেলিভারি হিরোরা খাবার সংগ্রহ করে বিতরণ করেন, এনজিও বা সংস্থাগুলো গ্রহণ করে, এবং অ্যাডমিন পুরো সিস্টেমের সুরক্ষা ও অনুমোদন নিয়ন্ত্রণ করেন।";
+    } 
+    // 6. Admin, Security & OTP
+    else if (query.includes('admin') || query.includes('otp') || query.includes('gmail') || query.includes('password') || query.includes('অ্যাডমিন')) {
+      botReply = isEnglishQuery
+        ? "Admins can verify or reject donation listings. Account security is reinforced with Gmail 6-digit OTP password reset protected by a 23-minute countdown timer."
+        : "অ্যাডমিন যেকোনো খাবারের পোস্ট অনুমোদন বা বাতিল করতে পারেন। এছাড়া জিমেইল ওটিপি কোডের মাধ্যমে নিরাপদ উপায়ে পাসওয়ার্ড পুনরুদ্ধارهای সুবিধা রয়েছে, যা ২৩ মিনিটের কাউন্টডাউন টাইমার দিয়ে সুরক্ষিত।";
+    } 
+    // 7. Greetings
+    else if (query.includes('hello') || query.includes('hi') || query.includes('salam') || query.includes('আসসালামু') || query.includes('হ্যালো')) {
+      botReply = isEnglishQuery
+        ? "Hello! I am your ShareBite AI Assistant. Feel free to ask any questions in English or Bangla regarding our platform, donor roles, or route calculations."
+        : "ওয়ালাইকুম আসসালাম! আমি আপনার শেয়ারবাইট এআই রোবট সহকারী। শেয়ারবাইট প্ল্যাটফর্ম, ডোনর রোল, রুট ও দূরত্ব পরিমাপ সম্পর্কে যেকোনো প্রশ্ন করতে পারেন।";
+    } 
+    // Default fallback
+    else {
+      botReply = isEnglishQuery
+        ? `Regarding your query "${text}", ShareBite operates as a real-time food rescue platform with live mapping and volunteer routing.`
+        : `আপনার প্রশ্ন "${text}" সম্পর্কে বলছি, শেয়ারবাইট জিরো ফুড ওয়েস্ট নিশ্চিত করতে এবং লাইভ ম্যাপ রুটের মাধ্যমে খাবার বিতরণ করতে কাজ করে।`;
+    }
+
+    state.chatMessages.push({
+      sender: isEnglishQuery ? 'ShareBite Assistant' : 'শেয়ারবাইট রোবট সহকারী',
+      text: botReply,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isSelf: false
+    });
+    renderChatMessages();
+    speakBotText(botReply, isEnglishQuery);
+  }, 1000);
+}
+
+/* AUDIT LOG & REPORT DOWNLOAD */
+function addAuditLog(text) {
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  state.auditLogs.unshift({ time: timeStr, text: text });
+  renderAuditLogs();
+}
+
+function renderAuditLogs() {
+  const container = document.getElementById('audit-log-list');
+  container.innerHTML = '';
+  state.auditLogs.slice(0, 8).forEach(log => {
+    const item = `
+      <div class="p-2 rounded-lg bg-gray-900/40 border border-gray-800/50 flex items-center justify-between gap-2">
+        <span class="text-gray-300 truncate">${log.text}</span>
+        <span class="text-[10px] text-gray-500 font-mono shrink-0">${log.time}</span>
+      </div>
+    `;
+    container.innerHTML += item;
+  });
+}
+
+function exportAuditPDF() {
+  let logText = "SHAREBITE PLATFORM AUDIT LOG REPORT\nGenerated: " + new Date().toLocaleString() + "\n\n";
+  state.auditLogs.forEach(l => {
+    logText += `[${l.time}] ${l.text}\n`;
+  });
+  const element = document.createElement("a");
+  const file = new Blob([logText], { type: 'text/plain' });
+  element.href = URL.createObjectURL ? URL.createObjectURL(file) : window.URL.createObjectURL(file);
+  element.download = `ShareBite_Audit_Report_${Date.now()}.txt`;
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
+  showToastNotification('Audit Log Downloaded', 'Audit report file exported to browser.', 'success');
+}
+
+/* RATING & FEEDBACK SYSTEM */
+function openRatingModal() {
+  document.getElementById('modal-rating').classList.remove('hidden');
+  setRating(5);
+}
+
+function setRating(val) {
+  state.currentRatingValue = val;
+  const stars = document.querySelectorAll('#star-rating-box .star-icon');
+  stars.forEach((star, index) => {
+    if (index < val) {
+      star.classList.add('text-yellow-400', 'fill-yellow-400');
+      star.classList.remove('text-gray-600');
+    } else {
+      star.classList.remove('text-yellow-400', 'fill-yellow-400');
+      star.classList.add('text-gray-600');
+    }
+  });
+}
+
+function submitRating() {
+  document.getElementById('modal-rating').classList.add('hidden');
+  showToastNotification('Thank You!', `Feedback (${state.currentRatingValue} Stars) recorded.`, 'success');
+  addAuditLog(`User submitted a ${state.currentRatingValue}-star delivery feedback`);
+}
+
+/* DYNAMIC TOAST NOTIFICATIONS */
+function showToastNotification(title, message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  let typeColors = 'bg-emerald-500/90 text-white border-emerald-400';
+  if (type === 'warning') typeColors = 'bg-yellow-500/90 text-darkbg border-yellow-400';
+  if (type === 'success') typeColors = 'bg-teal-500/90 text-white border-teal-400';
+
+  const toast = document.createElement('div');
+  toast.className = `toast-enter p-3 sm:p-3.5 rounded-xl border shadow-xl flex items-start space-x-2.5 sm:space-x-3 backdrop-blur-md pointer-events-auto ${typeColors}`;
+  toast.innerHTML = `
+    <i data-lucide="bell" class="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5"></i>
+    <div class="flex-grow text-xs">
+      <strong class="block font-bold text-xs sm:text-sm">${title}</strong>
+      <span>${message}</span>
+    </div>
+  `;
+  container.appendChild(toast);
+  if (window.lucide) lucide.createIcons();
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+</script>
+</body>
+</html>
